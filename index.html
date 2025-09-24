@@ -1,0 +1,2286 @@
+<!DOCTYPE html>
+<!--
+Title: NightArcher
+
+!!!Collapse code by hitting:
+
+1) Ctrl - A
+2) Ctrl - X
+3) Ctrl - V
+4) Ctrl - Alt - 0
+
+Last updated 3 months ago
+
+
+X) Finish coding the player animations
+X) fix player animation faults
+X) Add room changing animation
+X) Get that bow to work correctly
+X) Change player physics (player should be faster I think...)
+X) load images to the localStorage
+X) Ask Henry about "perlin noise in the grass"
+X) Ask Henry about "collisions only detected when the player is close to them"
+X) Idle cloak animation
+X) User inputs can be added based on what the user likes
+X) Move particles to a seperate canvas
+X) Move image cache to a seperate canvas
+X) Give the death animation particles opacity by using async or by moving them to a seperate canvas
+X) Poison splash
+X) Give the pipe another collision box
+X) Use the ES6 forEach function more and take advantage of the class thingy
+X) FIx the jump action frame
+
+Ideas
+IN DARK MODE THE BLOCKS DON'T SHOW!!!
+Cloak mode (player throws cloak over shoulders)
+
+
+https://stackoverflow.com/questions/3768565/drawing-an-svg-file-on-a-html5-canvas
+
+
+People to thank:
+
+!Especially: CZS, Henry
+
+Also: Pixel Imperfect, The Dark, Walk Worthy. Larry S.
+
+Playtesters:
+HR
+Duke
+-->
+<html>
+    <head>
+        <!--Encoding and viewport-->
+	    <meta charset="utf-8">
+	    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!--Import google font: Exo -->
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Exo">
+        <link rel='stylesheet' href='https://fonts.googleapis.com/css2?family=Lato&family=Material+Icons&display=swap'>
+        <!--The page title-->
+        <title>New webpage</title>
+        <!--CSS Styling-->
+        <style>
+            * {
+                transition: 1s;
+            }
+            script {
+                font-family: Pixelify Sans;
+                color: black;
+            }
+            body {
+                width: 100vw;
+                height: 100vh;
+                margin: 0;
+                padding: 0;
+                overflow: hidden;
+                align-items: center;
+                transition: 0s;
+                
+            }
+            a {
+                display: inline-block;
+                position: relative;
+                color: rgb(255, 255, 255);
+                text-decoration: none;
+            }
+            
+            a::before {
+                content: "";
+                position: absolute;
+                width: 100%;
+                height: 2px;
+                bottom: 0;
+                left: 0;
+                background-color: rgb(255, 255, 255);
+                visibility: hidden;
+                transform: scaleX(0);
+                transition: all 0.3s ease-in-out 0s;
+            }
+            
+            a:hover::before {
+                visibility: visible;
+                transform: scaleX(1);
+            }
+            
+            canvas {
+    			
+    		}
+		
+    		canvas:focus {
+    			outline: none;
+    		}
+            
+            #container {
+                position: relative;
+                color: black;
+                left: 0%;
+            }
+            
+            #container canvas, #overlay {
+                position: absolute;
+            }
+            
+            #fullscreen-container {
+                position: absolute;
+                left: 555px;
+                top: 5px;
+            }
+            
+    		#fullscreen {
+    		    color: white;
+    			font-size: 28px;
+    			border-radius: 50%;
+    			padding: 5px;
+    			box-sizing: border-box;
+    			cursor: pointer;
+    			transition: background 200ms;
+    		    position: relative;
+    		    float: right;
+    		    
+    		}
+    		#fullscreen:hover {
+    			background: #fff2;
+    		}
+        </style>
+    </head>
+    <body>
+        <!--The container for the entire thing-->
+        <div id= "container">
+            <canvas id = "game"></canvas>
+            <div id = "overlay">
+                <!--<div id = "fullscreen-container">
+                    <span class='material-icons' id='fullscreen'>fullscreen</span>
+                </div>-->
+            </div>
+        </div>
+    </body>
+    <!--HTML Canvas, Utility functions-->
+    <script type>
+    
+        //collect and delete animation frames that have already occured 
+        for(let i = window.requestAnimationFrame(function() {}); i > 0; i--) {
+            window.cancelAnimationFrame(i);
+        }
+        
+        // let id = window.requestAnimationFrame(function(){});
+        // while(id--) {
+        //     window.cancelAnimationFrame(id);
+        // }
+        
+        
+        //the canvas
+        var canvas = document.getElementById("game"); 
+        var ctx = canvas.getContext('2d'); 
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        var width = canvas.width;
+        var height = canvas.height;
+        
+        //this has a purpose
+        var KAInfiniteLoopProtect = () => {};
+        
+        //color modes
+        var Stroke = true;
+        var Fill = true;
+        
+        //user input methods
+        var keys = {};
+        var mouse = {
+            x: 0,
+            y: 0,
+            clicked: false,
+            released: false,
+            down: false,
+        };
+        
+        var EL = window.addEventListener;
+        var frameCount = 0;
+        
+        //Convert a angle to radians
+        function dR(degrees){
+            var pi = Math.PI;
+            return degrees * (pi/180);
+        }
+        
+        //convert a angle to radians
+        function rD(radians){
+            var pi = Math.PI;
+            return radians * (180/pi);
+        }
+        
+        //trig functions
+        function sin(a){
+            return Math.sin(dR(a));
+        }
+        function cos(a){
+            return Math.cos(dR(a));
+        }
+        function tan(a){
+            return Math.tan(dR(a));
+        }
+        function abs(a){
+            return Math.abs(a);
+        }
+        function atan(a){
+            return rD(Math.atan(a));
+        }
+        function atan2(a, b){
+            return rD(Math.atan2(a, b));
+        }
+        
+        //round a number
+        function round(a){
+            return Math.round(a);
+        }
+        
+        //The square root of a number
+        function sqrt(a){
+            return Math.sqrt(a);
+        }
+        
+        //a to the power of b
+        function pow(a, b){
+            return Math.pow(a, b);
+        }
+        
+        //Rounding methods
+        function ceil(a){
+            return Math.ceil(a);
+        }
+        function floor(a){
+            return Math.floor(a);
+        }
+        
+        //The sign of a num
+        function sign(x) {
+            return (abs(x) / x) || 0;
+        }
+        
+        //returns the random value of a min and max number
+        function random(min, max) {  
+            return Math.random() * (max - min + 1) + min;
+        }
+        
+        //Calculates a number between two numbers at a specific increment
+        function lerp(num1, num2, amt) {
+        	return num1 + (num2 - num1) * amt;
+        }
+        
+        //Re-maps a number from one range to another.
+        function map(num, start1, stop1, start2, stop2) {
+        	return start2 + (num - start1) / (stop1 - start1) * (stop2 - start2);
+        }
+        
+        //Constrains a value to not exceed a maximum and minimum value.
+        function constrain(num, min, max) {
+        	return Math.max(Math.min(num, max), min);
+        }
+        
+        //Calculates the distance between two points
+        function dist(x1, y1, x2, y2) {
+        	return Math.sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1));
+        }
+        
+        //Finds a midpoint
+        function midpoint(Ax, Bx, Ay, By){
+            var mx = (Ax + Bx)/2;
+            var my = (Ay + By)/2;
+            
+            return [mx, my];
+        }
+        
+        //Maps a point to a line where percentage is line length
+        function mapToLine(x1, y1, x2, y2, percentage) {
+            return {
+                x : x1 * (1.0 - percentage) + x2 * percentage, 
+                y : y1 * (1.0 - percentage) + y2 * percentage
+            };
+        }
+        
+        //Color methods
+        function fill(n) {
+        	Fill = true;
+        	ctx.fillStyle = n;
+        }
+        function stroke(str) {
+        	Stroke = true;
+        	ctx.strokeStyle = str;
+        }
+        function noStroke() {
+        	Stroke = false;
+        }
+        function noFill() {
+        	Fill = false;
+        }
+        function strokeWeight(s) {
+        	ctx.lineWidth = s;
+        }
+        function strokeCap(cap) {
+        	ctx.lineCap = cap;
+        }
+        function background(color){
+            fill(color);
+            ctx.fillRect(0, 0, width, height);
+        };
+        
+        //Transformations
+        function translate(x, y) {
+        	ctx.translate(x, y);
+        }
+        function scale(a, b) {
+        	if (b === undefined) {
+        		ctx.scale(a, a);
+        		return;
+        	}
+        	ctx.scale(a, b);
+        }
+        function rotate(angle) {
+        	ctx.rotate(angle / 180 * Math.PI);
+        }
+        function pushMatrix() {
+        	ctx.save();
+        }
+        function popMatrix() {
+        	ctx.restore();
+        }
+        
+        //Complex shapes
+        function beginShape() {
+        	ctx.beginPath();
+        }
+        function endShape() {
+        	if (Fill) {
+        		ctx.fill();
+        	}
+        	if (Stroke) {
+        		ctx.stroke();
+        	}
+        }
+        function vertex(x, y) {
+        	ctx.lineTo(x, y);
+        }
+        function curveVertex(cx, cy, x, y) {
+        	ctx.quadraticCurveTo(cx, cy, x, y);
+        }
+        function quad(x1, y1, x2, y2, x3, y3, x4, y4) {
+        	beginShape();
+        	vertex(x1, y1);
+        	vertex(x2, y2);
+        	vertex(x3, y3);
+        	vertex(x4, y4);
+        	vertex(x1, y1);
+        	endShape();
+        }
+        function triangle(x1, y1, x2, y2, x3, y3) {
+        	beginShape();
+        	vertex(x1, y1);
+        	vertex(x2, y2);
+        	vertex(x3, y3);
+        	vertex(x1, y1);
+        	endShape();
+        }
+        function bezierVertex(cx1, cy1, cx2, cy2, x, y) {
+        	ctx.bezierCurveTo(cx1, cy1, cx2, cy2, x, y);
+        }
+        function bezier(x1, y1, cx1, cy1, cx2, cy2, x2, y2) {
+        	ctx.beginPath();
+        	    ctx.moveTo(x1, y1);
+        	    bezierVertex(cx1, cy1, cx2, cy2, x2, y2);
+            ctx.stroke();
+        }
+        function line(x1, y1, x2, y2) {
+        	beginShape();
+        	vertex(x1, y1);
+        	vertex(x2, y2);
+        	endShape();
+        }
+        //A point (Circles take more processing)
+        function point(x, y, s) {
+            if(s === undefined){
+                ctx.fillRect(x, y, 2, 2);
+            }
+        	ctx.fillRect(x, y, s, s);
+        }
+        //rectangle (derived from GGScript v3.1: https://www.khanacademy.org/computer-programming/i/6574217842966528). 
+        function rect(x, y, w, h, r, r2, r3, r4) {
+        	r = r || 0;
+        	r = constrain(r, -Math.min(w, h) / 2, Math.min(w, h) / 2);
+        	if (r2 === undefined || r3 === undefined || r4 === undefined) {
+        		r2 = r;
+        		r3 = r;
+        		r4 = r;
+        	}
+        	r2 = constrain(r2, -Math.min(w, h) / 2, Math.min(w, h) / 2);
+        	r3 = constrain(r3, -Math.min(w, h) / 2, Math.min(w, h) / 2);
+        	r4 = constrain(r4, -Math.min(w, h) / 2, Math.min(w, h) / 2);
+        	beginShape();
+        	ctx.moveTo(x, y + r);
+        	curveVertex(x, y, x + r, y);
+        	vertex(x + w - r2, y);
+        	curveVertex(x + w, y, x + w, y + r2);
+        	vertex(x + w, y + h - r3);
+        	curveVertex(x + w, y + h, x + w - r3, y + h);
+        	vertex(x + r4, y + h);
+        	curveVertex(x, y + h, x, y + h - r4);
+        	vertex(x, y + r);
+        	endShape();
+        }
+        //Arcs and circles
+        function arcTo(x, y, r, start, stop) {
+        	ctx.arc(x, y, r / 2, start / 180 * Math.PI, stop / 180 * Math.PI);
+        }
+        function arc(x, y, w, h, start, stop) {
+        	pushMatrix();
+        	translate(x, y);
+        	scale(1, h / w);
+        	beginShape();
+        	arcTo(0, 0, w, start, stop);
+        	endShape();
+        	popMatrix();
+        }
+        function ellipse(x, y, w, h) {
+        	w = Math.abs(w);
+        	h = Math.abs(h);
+        	arc(x, y, w, h, 0, 360);
+        }
+        
+        //Change cursor
+        function cursor(name) {
+        	document.body.style.cursor = name;
+        }
+        
+        //Add key events
+        EL('keydown', (e) => {
+            e.preventDefault();
+            keys[e.which] = true;
+        });
+        EL('keyup', (e) => {
+            e.preventDefault();
+            keys[e.which] = false;
+        });
+        //add mouse events
+        EL('click', (e) => {
+            //e.preventDefault();
+            mouse.clicked = true;
+        });
+        EL('mouseup', (e) => {
+            //e.preventDefault();
+            mouse.released = true;
+            mouse.down = false;
+        });
+        EL('mousedown', (e) => {
+            //e.preventDefault();
+            mouse.down = true;
+        });
+        EL('mousemove', (e) => {
+            //e.preventDefault();
+            mouse.x = e.clientX,
+            mouse.y = e.clientY;
+        });
+        
+        //enableContextMenu
+        EL('oncontextmenu', (e) => {
+            return true;
+        });
+    </script>
+    <script type>
+try {
+    
+    //dev stuff
+    let err = "";
+    let txt = 0 || "";
+    
+    //predefine the camera
+    let cam;
+    
+    //frame manipulation
+    let frameCount = 0;
+    let firstFrame = true;
+    
+    //map setup
+    const blockSize = 10;
+    
+    //a three dimensional array
+    const CAVERNS = [
+    //NOTE: Levels are a perfect 200 by 200 pixels. This is useful for troubleshooting   
+        /** 
+        
+        0, 1
+        2, 3
+        
+        **/
+    [  
+        //0
+        [
+            "#########    #######",
+            "#########     ######",
+            "########        ####",
+            "#######          ###",
+            "#######          ###",
+            "######          P###",
+            "#########        ###",
+            "###     ####     ###",
+            "##        ##-----###",
+            "##         #########",
+            "##               ###",
+            "##                ##",
+            "##                ##",
+            "##                 #",
+            "##                 ",
+            "##                  ",
+            "#### C              ",
+            "########            ",
+            "###########---#     ",
+            "####################",
+        ],  
+        //1
+        [
+            "########################",
+            "########           #####",
+            "########             ###",
+            "#######                #",
+            "######                 ",
+            "#####                  ",
+            "#####                  ",
+            "###                    ",
+            "###                    ",
+            "##                     ",
+            "#                      ",
+            "#                      ",
+            "#                      ",
+            "#                      ",
+            "                       ",
+            "                       ",
+            "                       ",
+            "                       ",
+            "                       ",
+            "#########    ###########",
+        ], 
+        
+        [
+            "                   ",
+            "                    ",
+            "                    ",
+            "                    ",
+            "                    ",
+            "                    ",
+            "                    ",
+            "                    ",
+            "                    ",
+            "                    ",
+            "                    ",
+            "                    ",
+            "                    ",
+            "                    ",
+            "                    ",
+            "                    ",
+            "                    ",
+            "                    ",
+            "                    ",
+            "####################",
+        ],
+    ],  
+    [    
+        //2
+        [
+            "##############  ####",
+            "#                  #",
+            "#                  #",
+            "####            ####",
+            "########       #   #",
+            "#########     #    #",
+            "###########        #",
+            "#                  #",
+            "#                  #",
+            "#             ######",
+            "#            #     #",
+            "#           #      #",
+            "#          #       #",
+            "#  ####            #",
+            "#      #           #",
+            "#       #           ",
+            "#        #          ",
+            "#         #         ",
+            "#          #        ",
+            "#                  #",
+            "#                  #",
+            "#                  #",
+            "#      #############",
+            "#                  #",
+            "#                  #",
+            "####################",
+        ],
+        //3
+        [
+            "#########    ################",
+            "#                           #",
+            "#                           #",
+            "#        ###                #",
+            "#       #                   #",
+            "#P                          #",
+            "#                           #",
+            "#-----#                     #",
+            "########                    #",
+            "#  #######          #-------#",
+            "#      ####       ###########",
+            "#                 #####     #",
+            "#                ##         #",
+            "#              ####         #",
+            "#         #######           #",
+            "#        #####             P#",
+            "#       ######              #",
+            "#     ########              #",
+            "#    #########--------------#",
+            "#############################",
+        ],  
+    ],
+        
+        /**[
+            "####################",
+            "#                  #",
+            "#                  #",
+            "#                  #",
+            "#                  #",
+            "#                  #",
+            "#                  #",
+            "#                  #",
+            "#                  #",
+            "#                  #",
+            "#                  #",
+            "#                  #",
+            "#                  #",
+            "#                  #",
+            "#                  #",
+            "#                  #",
+            "#                  #",
+            "#                  #",
+            "#@                 #",
+            "####################",
+        ],  **/
+    ];
+    const NEWMAP = [];
+    
+    //the world colors
+    const col = {
+        //background
+        bg: "rgb(0, 0, 0)",
+        //overlay
+        bgOver: "rgba(255, 255, 255, 0.2)",
+        //player
+        p:{    
+            skinColor: "rgb(255, 225, 148)",  
+            bow: "rgb(92, 61, 5)",
+            cloths: "rgb(46, 97, 63)",
+            cloak: "rgb(92, 66, 45)",
+            cloakRear: "rgb(51, 33, 20)",
+            rear: "rgb(13, 69, 32)",
+            front: "rgb(56, 135, 82)", 
+        },
+        //blocks
+        bl:{
+            block: "rgb(42, 44, 66)",
+            block2: "rgb(17, 17, 28)",
+            grass: "rgb(86, 133, 64)",
+            poison: "rgb(255, 255, 255)",
+            pipe1: "rgb(161, 161, 161)",
+            pipe2: "rgb(115, 115, 115)",
+        },
+        wind: "rgba(255, 255, 255, 0.5)",
+    };
+    
+    
+    //fetch a certain part of the screen and move it around in chunks
+    class Explosian {
+        constructor(x, y, w, h, parSize) {
+            this.x = x;
+            this.y = y;
+            this.w = w;
+            this.h = h;
+            this.parSize = parSize;
+            
+            this.ImgArr = [];
+            this.array = this.getImgs();
+        }
+        runParticles(par){
+            for(var i = 0; i < par.length; i++){
+                ctx.save();
+                    ctx.translate(par[i].x, par[i].y);
+                    ctx.translate(-this.parSize/2, 0);
+                    //put image particles cannot be transparent, going to have to fix this later by adding a seperate canvas
+                    //ctx.globalAlpha = par[i].opacity;
+                    //ctx.globalAlpha = 0.1;
+                    //image(par[i].i, 0, 0);
+                    ctx.putImageData(par[i].i, par[i].x, par[i].y, 0, 0, this.parSize, this.parSize);
+                ctx.restore();
+                par[i].opacity -= par[i].timer/2000;
+                //err = par[i].opacity;
+                par[i].y += par[i].vy;
+                par[i].x += par[i].vx;
+                //acceleration 
+                par[i].vx -= 0.08; 
+                par[i].timer--;
+                if(par[i].timer < 0){
+                    par.splice(i, 1);
+                }
+            }
+        }
+        getImgs(){
+            for(var i = this.x; i < this.x + this.w; i += this.parSize){
+                for(var j = this.y; j < this.y + this.h; j += this.parSize){
+                    this.ImgArr.push({
+                        //fetch a chunks of the image
+                        i: ctx.getImageData(i, j, this.parSize, this.parSize),
+                        //velocity is random
+                        vx: -random(0.005, 0.1), 
+                        vy: -random(1.005, 1.0), 
+                        //rotation
+                        r: 60, 
+                        rs: random(-2, 2), 
+                        //particle speed
+                        s: random(20, 25), 
+                        //starting place
+                        x: i, 
+                        y: j,   timer: random(20, 100),
+                        opacity: 1,
+                    });
+                }
+            }
+            return this.ImgArr;
+        }
+        run(){
+            this.runParticles(this.array);
+        }
+    };
+    
+    //Particle Systems
+    const Particle = (function () {
+        const Configure = function (config) {
+            this.position = config.position || Object;
+            this.size = config.size || 10;
+            this.color = config.color;
+            this.velocity = config.velocity || Object;
+            //the lifetime of a particle is directly equal to the amount of particles active, cool right?
+            this.life = config.life || 100;
+            this.acceleration = config.acceleration || Object;
+            this.angle = config.angle || 0;
+            this.rotation = config.rotation || 0;
+            this.opacity = config.opacity || 1;
+            this.clear = config.clear || false;
+        };
+        Configure.prototype = {
+            addVelocity: function(){
+                this.position.x += this.velocity.x;
+                this.position.y += this.velocity.y;
+            },
+            addAcceleration: function(){
+                this.velocity.x += this.acceleration.x;
+                this.velocity.y += this.acceleration.y;
+            },
+            update: function(){
+                this.addVelocity();
+                this.addAcceleration();
+                this.angle += this.rotation;
+                if(this.clear !== false){
+                    this.opacity -= this.life/1000;
+                }
+                else {
+                    this.opacity = 1;
+                }
+                this.life--;
+            },
+            draw: function () {
+                pushMatrix();
+                    noStroke();
+                    ctx.translate(this.position.x + this.size / 2, this.position.y + this.size / 2);
+                    rotate(this.angle);
+                    ctx.fillStyle = this.color;
+                    ctx.globalAlpha = this.opacity;
+                    rect(-this.size / 2, -this.size / 2, this.size, this.size);
+                popMatrix();
+            },
+            die: function(){
+                return this.life < 0;
+            },
+            run: function(){
+                this.draw();
+                this.update();
+            },
+        };
+        return Configure;
+    })();
+    const ParticleSystem = (function () {
+        const Configure = function (config) {
+            this.add = config.add || function() {};
+            //each system has its own array of particles
+            this.particles = [];
+        };
+        Configure.prototype = {
+            addParticle: function(){
+                this.add();
+            },
+            run: function(){
+                //scrap object if particles not being added
+                if(!this.add){
+                    this.addParticle();
+                }
+                for (let i = this.particles.length-1; i >= 0; i--) {
+                    this.particles[i].run();
+                    if (this.particles[i].die()) {
+                        this.particles.splice(i, 1);
+                    }
+                }
+                
+            },
+        };
+        return Configure;
+    })();
+    const poisonParticles = new ParticleSystem({
+        add: function(x, y, w, h){
+            if((Math.random(2)*2-1) > 0.97){
+                this.particles.push(new Particle({
+                    position: {
+                        x: random(x, x + w),
+                        y: y
+                    },
+                    velocity: {
+                        x: random(-0.5, 0.5),
+                        y: random(-1, -3)
+                    },
+                    size: 1.5,
+                    color: col.bl.poison,
+                    opacity: 1,
+                    life: 40,
+                    acceleration: {
+                        x: 0,
+                        y: 0.08,
+                    },
+                    angle: 60,
+                    rotation: random(4, 7) * -random(1, 2),
+                    clear: true,
+                }));
+            }
+        },
+    }),
+          poisonStream = new ParticleSystem({
+            add: function(x, y, xVel, lifeTime){
+                this.particles.push(new Particle({
+                    position: {
+                        x: x,
+                        y: y
+                    },
+                    velocity: {
+                        x: xVel,
+                        y: random(-0.5, -1)
+                    },
+                    size: random(1, 4),
+                    color: col.bl.poison,
+                    opacity: 1,
+                    life: lifeTime,
+                    acceleration: {
+                        x: 0,
+                        y: 0.08,
+                    },
+                    angle: 60,
+                    rotation: random(4, 7) * -random(1, 2),
+                    clear: false,
+                    
+                }));
+            },
+          }),
+          wind = new ParticleSystem({
+            add: function(x, y){
+                if((Math.random(2)*2-1) > 0.30){
+                    this.particles.push(new Particle({
+                        position: {
+                            x: width + 5,
+                            y: random(0, height)
+                        },
+                        velocity: {
+                            x: -0.5,
+                            y: random(-0.5, -1)
+                        },
+                        size: random(1, 5),
+                        color: col.wind,
+                        opacity: 1,
+                        life: 150,
+                        acceleration: {
+                            x: -0.05,
+                            y: 0.0,
+                        },
+                        angle: 60,
+                        rotation: random(4, 7) * -random(1, 2),
+                        clear: false,
+                        
+                    }));
+                }
+            },
+          });
+    
+    
+    //the current map string for level processing
+    let LEVEL = "";
+    
+    //the players current row and column in the World
+    let curRow = 0;
+    let curColumn = 0;  
+    let curMap = CAVERNS;
+    
+    //size storage for length of levels in pixels
+    let lvlSizeX = 0;
+    let lvlSizeY = 0;
+    
+    //critical functions, room changing, death animation
+    const functions = {
+        active: false,
+        started: false,
+        plUpdate: true,
+        plDisplay: true,
+        
+        left: false,
+        right: false,
+        top: false,
+        bottom: false,
+        
+        startPos: {
+            row: 0,
+            col: 0,
+            x: 50,
+            y: 150,
+        },
+        plCoord: {
+            x: 0,
+            y: 0,
+        },
+        
+        deathTimer: 50,
+        deathTimerStart: 50,
+        
+        playerDeathAnimation: {run: function(){}},
+        imageFetched: true,
+        storedPlayerImage: null,
+        
+        checkColl: function(player){
+            if(player.x < (0 - player.w/2)){
+                this.left = true;
+                this.started = true;
+            }
+            if(player.x > (lvlSizeX - player.w/2)){
+                this.right = true;
+                this.started = true;
+            }
+            if(player.y < (0 - player.h/2)){
+                this.top = true;
+                this.started = true;
+            }
+            if(player.y > (lvlSizeY + player.h/2)){
+                this.bottom = true;
+                this.started = true;
+            }
+            return this.checkColl;
+        },
+        leftRoom: function(player){
+            return curColumn -= 1;
+        },
+        rightRoom: function(player){
+            return curColumn += 1;
+        },
+        topRoom: function(player){
+            return curRow -= 1;
+        },
+        bottomRoom: function(player){
+            return curRow += 1;
+        },
+        storePlayerCoords: function(player){
+            this.plCoord.x = player.x;
+            this.plCoord.y = player.y;
+        },
+        resetParticles: function(){
+            poisonParticles.particles = [];
+            poisonStream.particles = [];
+        },
+        resetRoom: function(){
+            LEVEL = curMap[curRow][curColumn];
+            mapSetup(LEVEL);
+            this.resetParticles();
+        },
+        execute: function(player){
+            this.checkColl(player);
+            //this.started is a closure. It only allows the wrapped commands to be executed once. This is important when dealing with increments and decrements
+            if(this.started){
+                if(this.top){
+                    this.storePlayerCoords(player);
+                    this.topRoom(player);
+                    this.resetRoom();
+                    player.x = this.plCoord.x;
+                    player.y = lvlSizeY - player.h;
+                    this.top = false;
+                    this.started = false;
+                }
+                if(this.bottom){
+                    this.storePlayerCoords(player);
+                    this.bottomRoom(player);
+                    this.resetRoom();
+                    player.x = this.plCoord.x;
+                    player.y = 0;
+                    this.bottom = false;
+                    this.started = false;
+                }
+                if(this.left){
+                    this.storePlayerCoords(player);
+                    this.leftRoom(player);
+                    this.resetRoom();
+                    player.x = lvlSizeX - player.w;
+                    player.y = this.plCoord.y;
+                    this.left = false;
+                    this.started = false;
+                }
+                if(this.right){
+                    this.storePlayerCoords(player);
+                    this.rightRoom(player);
+                    this.resetRoom();
+                    player.x = 5;
+                    player.y = this.plCoord.y;
+                    this.right = false;
+                    this.started = false;
+                }
+            }
+            
+            //Note to future idiot self: 
+            /**
+            Thanks to CZS for real world positioning!
+            
+            Canvas transformations kind of take effect in reverse, which has always been a little confusing to me, and I think it's what's confusing you as well. In cam.run(), you're calling scale() first, then translate(), but the effect is that the stuff on the canvas is being translated first and then scaled. This means that, in order to calculate the final position on the canvas, we need to add the argument of translate() first, and then multiply by the argument of scale():
+        
+            xOnCanvas = (xInRoom + translatedX) * scaleFactor;
+
+            This should help with the mouse problem as well. The inverse of the equation above is:
+
+            xInRoom = xOnCanvas / scaleFactor - translatedX;
+            **/
+            
+            //the players real world position 
+            let plX = (player.x + player.xOff - cam.x + cam.align.x) * cam.z - 30;
+            let plY = (player.y + player.yOff - cam.y + cam.align.y) * cam.z - 180;
+            
+            //on death
+            if(player.die){
+                this.deathTimer--;
+                this.plUpdate = false;
+                if(this.imageFetched){
+                    //this fetches the canvas and divides it up into sections (x, y, width, height, parSize)
+                    this.playerDeathAnimation = new Explosian(plX, plY, 100, 100, 5);
+                    //player is not displayed 
+                    this.plDisplay = false;
+                    //call flag last
+                    this.imageFetched = false;
+                }
+                
+                //player goes to restart place
+                if(this.deathTimer <= 0){
+                    LEVEL = curMap[this.startPos.row][this.startPos.col];
+                    this.resetParticles();
+                    player.v.x = 0;
+                    player.v.y = 0;
+                    player.x = this.startPos.x;
+                    player.y = this.startPos.y;
+                    curRow = this.startPos.row;
+                    curColumn = this.startPos.col;
+                    mapSetup(LEVEL);
+                    this.deathTimer = this.deathTimerStart;
+                    this.plUpdate = true;
+                    this.plDisplay = true;
+                    this.imageFetched = true;
+                    //always make sure to call the flag last
+                    player.die = false;
+                }
+            }
+            
+            //run the death animation in real time
+            this.playerDeathAnimation.run();
+            
+            //this.playerDeathAnimation.array = [];
+        },
+    };
+    
+    //the image cache. Loads images into the canvas. Going to save them to localStorage in the future
+    const imagesToLoad = [
+        {
+            display : function() { 
+                noStroke();
+                for(var j = 0; j < height; j++){
+                    for(var i = 0; i < width; i++){
+                        fill(col.bgOver);
+                        if(Math.floor(random(0, 1))){
+                            ctx.fillRect(j * 2.5, i * 2.5, 2.5, 2.5);
+                        }
+                        ///txt = value;
+                    }        
+                }
+            }, 
+            w : width,
+            h : height,
+        }, 
+        {
+            display : function() {
+                
+            }, 
+            w : 600,
+            h : 600
+        }
+    ];
+    var Cache = (function() {
+        Cache = function(that) {
+            this.loaded = false;
+            this.imgIndex = 0;
+            this.curImg = {};
+            this.img = [];
+        };
+        Cache.prototype = {
+            load: function() {
+                if (this.imgIndex < imagesToLoad.length) {
+                    (async() => {
+                        this.curImg = imagesToLoad[this.imgIndex];
+                        this.curImg.display();
+                        let imageData = ctx.getImageData(
+                            0, 0, this.curImg.w, this.curImg.h
+                        );
+                        
+                        for (let i = 3; i < imageData.data.length; i += 4) {
+                            imageData.data[i] = 0.2 * 255;                            }
+                        //await is the loading keyword available in ES6, very handy
+                        const bmp = await createImageBitmap(imageData);
+                        this.img.push(bmp);
+                        this.imgIndex++;
+                    })();
+                }  
+                else { 
+                    this.loaded = true;
+                }
+            }
+        };
+        return Cache;
+    })(); 
+    const cache = new Cache();
+    function img(that, x, y){
+        if(cache.loaded){
+            return ctx.drawImage(that, x, y);
+        }
+    }
+    
+    //camera shake
+    const shakes = []; 
+    let shake = {
+        x: 0,
+        y: 0,
+    };
+    const Shake = (function () {
+        let Shake = function (n) {
+            //shake power
+            this.n = n;
+        };
+        Shake.prototype = {
+            active: function(increment){
+                //apply shake
+                shake.x = (Math.random()*2-1)*this.n;
+                shake.y = (Math.random()*2-1)*this.n;
+                
+                //fade the shake
+                this.n -= 0.5;
+                
+                if (this.n < 0) {
+                    shake.x = 0;
+                    shake.y = 0;
+                    shakes.splice(increment, 1);
+                }
+            }
+        };
+        return Shake;
+    })();
+            
+    //collisions, SCRAPPED
+    const Physics = (function(){
+        const correction = 1;
+        const collideBox = {
+            top: function(a, b){
+                if ((a.x + a.w / 2 - correction) > b.x - a.w / 2 && (a.x) < (b.x + b.w - 3) && (a.y + a.h) > b.y && (a.y < b.y - 3)) {
+                    return true;
+                }
+            },
+            bottom: function(a, b){
+                if ((a.x + a.w / 2 - correction) > b.x - a.w / 2 && (a.x) < (b.x + b.w - 3) && (a.y + a.h) > b.y && (a.y < b.y + b.h)) {
+                    return true;
+                }
+            },
+            right: function(a, b){
+                if ((a.x) > b.x - a.w / 2 && (a.x) < (b.x + b.w) && (a.y + a.h - correction) > b.y && (a.y < b.y + b.h)) {
+                    return true;
+                }
+            },
+            left: function(a, b){
+                if ((a.x + a.w / 2) > b.x - a.w / 2 && (a.x) < (b.x) && (a.y + a.h - correction) > b.y && (a.y < b.y + b.h)) {
+                    return true;
+                }  
+            },
+            all: function(a, b){
+                if(this.top(a, b)){
+                    a.v.y = 0;
+                    a.jump = true;
+                    a.y = b.y - a.h;
+                }
+                if(this.bottom(a, b)){
+                    a.v.y = 0;
+                    a.y = b.y + b.h;
+                }
+                if(this.right(a, b)){
+                    a.v.x = 0;
+                    a.x = b.x + b.w;
+                }
+                if(this.left(a, b)){
+                    a.v.x = 0;
+                    a.x = b.x - a.w;
+                }
+            },
+            touch: function(a, b){
+                return a.x + a.w > b.x && a.x < b.x + b.w && a.y + a.h > b.y && a.y < b.y + b.h;
+            }
+        };
+        return {
+            collideBox: collideBox,
+        };
+    })();
+    
+    //rectangle edge check between two entities 
+    function edgeCheck(a, b) {
+        return (
+          a.x + a.w > b.x &&
+          a.x < b.x + b.w &&
+          a.y + a.h > b.y &&
+          a.y < b.y + b.h
+        );
+    }
+    
+    //the player. Since the player is only drawn once it should be an object not a constructor. 
+    const player = {
+        //scaling and positioning 
+        scale: 0.25,
+        xOff: 6,
+        yOff: 52,
+        x: 0, y: 0,
+        w: 10, h: 20,
+        
+        //graphical animations
+        index: 0,
+        walk: [
+            [7, 18, -23, 5], 
+            [-28, 75, -9, 5],
+            [-44, 75, 3, 5],
+            [-23, 5, 7, 18], 
+            [-9, 5, -28, 75],  
+            [3, 5, -44, 75],  
+        ],
+        walkArms: [
+            [-10, -39, 21, 0],
+            [-22, -20, -4, 4],
+            [22, -29, -22, -10],
+            [23, -1, -6, -48],
+            [-4, 4, -14, -37],
+            [-26, 8, 16, -17],
+        ],
+        idle: [3, 10, -10, 5],
+        air: [-20, 90, -30, 90],
+        pos: [0, 0, 0, 0],
+        idleArms: [4, -70, -9, 15],
+        posArms: [-10, -39, 21, 0],
+        action: "idle",
+        dir: 1,
+        animSpeed: 0.125,
+        emphasis: 1.4,
+        hasBow: true,
+        
+        die: false,
+        shoot: false,
+        top: false,
+        followMouse: false,
+        
+        //collisions
+        collide: {
+            left: false,
+            right: false,
+            top: false,
+            bottom: false
+        },
+        inputs: {
+            left: null,
+            right: null,
+            up: null,
+        },
+        v: {
+            x: 0,
+            y: 0,
+        },
+        jump: false,
+        
+        acceleration: 0.1,
+        friction: 1.1,
+        jumpPow: 2,
+        gravity: 0.08,
+        speed: 0.7,
+        
+        leg1: function(t1, k1, t2, k2, x, y){
+            noStroke();
+            //rear leg
+            fill(col.p.rear);
+            pushMatrix();
+                translate(x, y);
+                rotate(t2);
+                rect(-5 * this.scale, 0, 10 * this.scale, 25 * this.scale, 5 * this.scale);
+                translate(0, 20  * this.scale);
+                rotate(k2);
+                rect(-5 * this.scale, 0, 10  * this.scale, 20 * this.scale, 3 * this.scale);
+                fill(col.p.cloakRear);
+                rect(-5 * this.scale, 1, 10 * this.scale, 20 * this.scale, 3 * this.scale);
+                rect(-5 * this.scale, 4, 14 * this.scale, 7 * this.scale, 3 * this.scale);
+            popMatrix();
+        },
+        leg2: function(t1, k1, t2, k2, x, y){
+            noStroke();
+            //front leg
+            fill(col.p.front);
+            pushMatrix();
+                translate(x, y);
+                rotate(t1);
+                rect(-5  * this.scale, 0, 10  * this.scale, 25  * this.scale, 5 * this.scale);
+                translate(0, 20 * this.scale);
+                rotate(k1);
+                rect(-5 * this.scale, 0, 10 * this.scale, 20 * this.scale, 3 * this.scale);
+                fill(col.p.cloak);
+                rect(-5 * this.scale, 1, 10 * this.scale, 20 * this.scale, 3 * this.scale);
+                rect(-5 * this.scale, 4, 14 * this.scale, 7 * this.scale, 3 * this.scale);
+            popMatrix();
+        },
+        bow: function(x, y, pow, ANGLE){
+            /**
+            if(mouse.down){
+                this.shoot = true;
+            }
+            else {
+                this.shoot = false;
+            }
+            
+            **/
+            pushMatrix();
+                translate(x, y - pow + -13);
+                // var x = (mouseX - x - this.x);
+                // var y = (mouseY - y - this.y);
+                // var angle = atan2(y, x);
+                //rotate(angle + 45);
+                rotate(ANGLE);
+                const zed = mapToLine(-16  * this.scale, 20 * this.scale, 16 * this.scale, -20 * this.scale, pow);
+                var x = zed.x;
+                var y = zed.y;
+                noFill(); strokeWeight(4 * this.scale); stroke(col.p.bow);
+                strokeCap(100);
+                bezier(-20 * this.scale, -14 * this.scale, x * pow * this.scale, y * pow * this.scale, x * pow * this.scale, y * pow * this.scale, 16 * this.scale, 20 * this.scale);
+            popMatrix();
+        },
+        arm1: function(t1, k1, t2, k2, x, y){
+            noStroke();
+            //front arm
+            pushMatrix();
+                translate(x, y);
+                
+                if(!this.hasBow){
+                    rotate(t1);
+                }
+                
+                fill(col.p.front);
+                rect(-5 * this.scale, 0, 10 * this.scale, 25 * this.scale, 5 * this.scale);
+                
+                
+                translate(0, 5);
+                if(!this.hasBow){
+                    rotate(k1);
+                }
+                
+                //bow
+                //{
+                //inaccurate, so why keep it? The answer: becuse I am an idiot
+                //var xPos = (player.x + player.xOff) * cam.z - cam.x + cam.align.x;
+                //var yPos = (player.y + player.yOff) * cam.z - cam.y + cam.align.y - 138;
+
+                //var angle = atan2(-this.dir * (mouse.x - xPos), mouse.y - yPos);
+                
+                if(this.hasBow){
+                    //if(this.shoot){
+                        //rotate(angle);
+                    //}
+                    //else {
+                        rotate(k1);
+                    //}
+                    
+                    //-0.35 max
+                    this.bow(0, 17, -0.20, 145);
+                
+                }
+                //}
+                
+                noStroke();
+                fill(col.p.skinColor);
+                ellipse(0 * this.scale, 16 * this.scale, 8 * this.scale, 8 * this.scale);
+                
+                fill(col.p.front);
+                rect(-5 * this.scale, 0, 10 * this.scale, 12 * this.scale, 3 * this.scale);
+            popMatrix();
+        },
+        arm2: function(t1, k1, t2, k2, x, y){
+            noStroke();
+            //rear
+            pushMatrix();
+                translate(x, y);
+                rotate(t2);
+                
+                fill(col.p.rear);
+                rect(-5 * this.scale, 0, 10 * this.scale, 25 * this.scale, 5 * this.scale);
+                
+                translate(0, 20 * this.scale);
+                rotate(k2);
+                
+                noStroke();
+                fill(col.p.skinColor);
+                ellipse(0, 16 * this.scale, 8 * this.scale, 8 * this.scale);
+                
+                fill(col.p.rear);
+                rect(-5 * this.scale, 0, 10 * this.scale, 12 * this.scale, 3 * this.scale);
+            popMatrix();
+        },
+        head: function(x, y){
+            //noStroke();
+            pushMatrix();
+                translate(x, y);
+                fill(col.p.skinColor);
+                ellipse(0, 1, 20 * this.scale, 20 * this.scale);
+            popMatrix();
+        },
+        cloakFront: function(x, y){
+            noStroke();
+            let xMove = ((-Math.abs(this.v.x) - 0) / 40) * 90;
+            let yMove = 0;
+            yMove = lerp(yMove, -this.v.y, 0.8);
+            pushMatrix();
+                translate(x, y);
+                fill(col.p.cloak);
+                ctx.beginPath();
+    	        ctx.moveTo(-0.6, 4.0);
+    	        bezierVertex(-18.7 + xMove, 21.0 + yMove * 2, 4.6 + xMove, 22.0 + yMove, 1 + xMove, 10 + yMove * 2);
+                ctx.fill();
+                //hood
+                ctx.beginPath();
+    	        ctx.moveTo(1, -3);
+    	        bezierVertex(-6.7, 2.0, -5.0, 2.0, 1, 6);
+                ctx.fill();
+                
+            popMatrix();
+        },
+        cloakRear: function(x, y){
+            noStroke();
+            let xMove = ((-Math.abs(this.v.x) - 0) / 40) * 90;
+            let yMove = 0;
+            yMove = lerp(yMove, -this.v.y, 0.8);
+            pushMatrix();
+                translate(x + 4, y);
+                fill(col.p.cloakRear);
+                ctx.beginPath();
+    	        ctx.moveTo(-2.9, 4.0);
+    	        bezierVertex(-18.7 + xMove, 21.0 + yMove * 2, 4.6 + xMove, 22.0 + yMove, 1 + xMove, 10 + yMove * 2);
+                ctx.fill();
+            popMatrix();
+        },
+        body: function(x, y){
+            noStroke();
+            pushMatrix();
+                translate(x, y);
+                
+                fill(col.p.cloths);
+                rect(5 * this.scale, -14 * this.scale, 14 * this.scale, 34 * this.scale);
+            popMatrix();
+        },
+        draw: function(){
+            switch(this.action){
+                case "walk": {
+                    if(this.action !== "air"){
+                        let s = this.walk[~~this.index%this.walk.length];
+                        for(var i = 0; i < this.pos.length; i += 1){
+                            this.pos[i] = lerp(this.pos[i], s[i]*this.emphasis, this.animSpeed);
+                        }
+                        let zed = this.walkArms[~~this.index%this.walkArms.length];
+                        for(let i = 0; i < this.posArms.length; i += 1){
+                            this.posArms[i] = lerp(this.posArms[i], zed[i]*this.emphasis, this.animSpeed);
+                        }
+                    }
+                    break;
+                }
+                case "air": {
+                    for(let i = 0; i < this.pos.length; i += 1){
+                        this.pos[i] = lerp(this.pos[i], this.air[i], this.animSpeed);
+                    }
+                    break;
+                }
+                case "shoot": {
+                    alert("shoot");
+                    break;
+                }
+                case "idle": {
+                    for(let i = 0; i < this.pos.length; i += 1){
+                        this.posArms[i] = lerp(this.posArms[i], this.idleArms[i], this.animSpeed);
+                    }
+                    for(let i = 0; i < this.pos.length; i += 1){
+                        this.pos[i] = lerp(this.pos[i], this.idle[i], this.animSpeed);
+                    }
+                }
+            }
+            //idle
+            if(this.action !== ("walk" || "air")){
+                this.action = "idle";
+            }
+            
+            
+            //render actual player
+            pushMatrix();
+                translate(this.x + this.xOff, this.y + this.yOff);
+                //negate cam             
+                let alphaX = mouse.x / cam.z + cam.x - cam.align.x;
+                let alphaY = mouse.y / cam.z + cam.y - cam.align.y;
+                
+                //reverse player transitions (Note to future self: Look at CZS's comment. Also, keep in mind that when putting this in a function in the player prototype make sure to reverse the directional scaling)
+                let trueX = alphaX - this.x - this.xOff;
+                let trueY = alphaY - this.y - this.yOff;
+                txt = Math.floor(trueX) + ", " + Math.floor(trueY);
+                fill("green");
+                ellipse(trueX, trueY, 2, 2);
+                
+                scale(this.dir, 1);
+                this.cloakRear(0, -52);
+                this.arm2(this.posArms[0], this.posArms[1], this.posArms[2], this.posArms[3], 0, -49);
+                this.leg1(this.pos[0], this.pos[1], this.pos[2], this.pos[3], 0, -42);
+                this.leg2(this.pos[0], this.pos[1], this.pos[2], this.pos[3], 0, -42);
+                this.body(-3, -46);
+                //front arm and bow
+                this.arm1(this.posArms[0], this.posArms[1], this.posArms[2], this.posArms[3], 0, -49);
+                this.head(0, -52);
+                
+                this.cloakFront(0, -52);
+            popMatrix();
+            this.index += 0.1;
+        },  
+        
+        collideX: function(that){
+            //first check if the player is touching a block
+            if(edgeCheck(this, that)){
+                //vector velocity can determine what side
+                if(this.v.x > 0){
+                    this.collide.right = true;
+                    this.x = that.x - this.w;
+                }
+                else {
+                    this.collide.left = true;
+                    this.x = that.x + that.w;
+                }
+                
+                //the player is colliding
+                that.colX = true;
+                return true;
+            }
+            //the player is not colliding on the x-axis
+            this.collide.left = false;
+            this.collide.right = false;
+            that.colX = false;
+            return false;
+        },
+        collideY: function(that){
+            //is the player touching a block?
+            if(edgeCheck(this, that)){
+                //vector velocity can determine orientation
+                if(this.v.y > 0){
+                    this.collide.top = true;
+                    this.y = that.y - this.h;
+                    this.v.y = 0;
+                }
+                else {
+                    this.collide.bottom = true;
+                    this.y = that.y + that.h;
+                    this.v.y *= -0.1;
+                }
+                
+                //the player is colliding on the y-axis
+                that.colY = true;
+                return true;
+            }
+            //the player is not colliding on the y-axis
+            this.collide.top = false;
+            this.collide.bottom = false;
+            that.colY = false;
+            return false;
+        },
+        
+        moveX: function(){
+            this.inputs.left = (keys[37] || keys[65]);
+            this.inputs.right = (keys[39] || keys[68]);
+            
+            //vector movement
+            if(this.inputs.left && !this.collide.left){
+                this.v.x -= this.acceleration;
+                if(!this.collide.top){
+                    this.action = "air";
+                }
+                else if(!this.collide.right){
+                    this.action = "walk";
+                }
+                else {
+                    this.action = "idle";
+                }
+                this.dir = -1;
+            }
+            else if (this.inputs.right && !this.collide.right) { 
+                this.v.x += this.acceleration;
+                if(!this.collide.top){
+                    this.action = "air";
+                }
+                else if(Math.abs(this.v.x) > 0.1){
+                    this.action = "walk";
+                }
+                else {
+                    this.action = "idle";
+                }
+                this.dir = 1;
+            }
+            else {
+                this.v.x /= this.friction; 
+                if(this.collide.top){
+                    this.action = "idle";
+                }
+            }
+            
+            //fixes an annoying bug
+            if(this.v.x !== 0){
+                this.x += this.v.x;
+            }
+            this.v.x = constrain(this.v.x, -this.speed, this.speed);
+            
+        },
+        moveY: function(){
+            this.inputs.up = (keys[38] || keys[87]);
+            
+            if (this.inputs.up && this.collide.top) {
+                this.v.y = -this.jumpPow;
+                this.action = "air";
+            }
+            this.v.y += this.gravity;
+            this.y += this.v.y;
+            if(!this.collide.top) {
+                this.action = "air";
+            }
+        },
+        
+        display: function() {
+            this.draw();
+            err = JSON.stringify(this.collide);
+            
+            //collision box
+            //fill("rgba(255, 255, 255, 0.3)");
+            //ctx.fillRect(this.x, this.y, this.w, this.h);
+        },
+    };
+    
+    //expirement
+    function range(n){
+        if(dist(player.x, player.y, n.x, n.y) < blockSize * Math.sqrt(5)){
+            return true;
+        }
+    }
+    
+    //the room naming function
+    function roomName(){
+        if(curColumn === 0 && curRow === 0 && curMap === CAVERNS){
+            ctx.save();
+                ctx.textAlign = 'center';
+                ctx.fillStyle = "white";
+                ctx.font = 'bold 30px Lato';
+                ctx.fillText("The", 190, 310);
+                ctx.font = 'bold 50px Lato';
+                ctx.fillText("Desolate Plains", 300, 350);
+            ctx.restore();
+        }
+    }
+    
+    //block constructing and management
+    let collidables = [];
+    let nonCollidables = [];
+    let rearBlocks = [];
+    let collisionEntities = [];
+    
+    class Collidable {
+        constructor(x, y, w, h, type, left, right, top, bottom, onEdge, i) {
+            this.x = x;
+            this.y = y;
+            this.w = w;
+            this.h = h;
+            this.type = type;
+            this.seed = i;
+            this.left = left;
+            this.right = right;
+            this.top = top;
+            this.bottom = bottom;
+            this.onEdge = onEdge;
+            
+            //is it currently being collided with?
+            this.colX = false;
+            this.colY = false;
+        }
+    };
+    class nonCollidable {
+        constructor(x, y, w, h, type, left, right, top, bottom, onEdge, i) {
+            this.x = x;
+            this.y = y;
+            this.w = w;
+            this.h = h;
+            this.type = type;
+            //randomize
+            this.seed = i;
+            
+            //orientation 
+            this.left = left;
+            this.right = right;
+            this.top = top;
+            this.bottom = bottom;
+            
+            //is it on the edge of the array?
+            this.onEdge = onEdge;
+        }
+    }
+    
+    class Block extends Collidable {
+        constructor(x, y, w, h, type, left, right, top, bottom, onEdge, i) {
+            super(x, y, w, h, type, left, right, top, bottom, onEdge, i);
+        }
+        draw(){
+            ctx.save();
+            fill(col.bl.block2);
+            if((!this.bottom || !this.top || !this.left || !this.right) && !this.onEdge){
+                //adjacent space to the left, top, right, or bottom 
+                fill(col.bl.block);
+            }
+            // if(this.colY){
+            //     fill("red");
+            // }
+            // if(this.colX){
+            //     fill("blue");
+            // }
+            rect(this.x, this.y, this.w, this.h);
+            ctx.restore();
+            
+            //grass
+            if(!this.top){
+                fill(col.bl.grass);
+                triangle(
+                    this.x, this.y, 
+                    this.x + 2, this.y - 2 * this.seed, 
+                    this.x + 4, this.y - 0
+                );
+                pushMatrix();
+                translate(2, 0);
+                triangle(
+                    this.x, this.y, 
+                    this.x + 2, this.y + -2 * this.seed, 
+                    this.x + 4, this.y - 0
+                );
+                translate(4, 0);
+                triangle(
+                    this.x, this.y, 
+                    this.x + 2, this.y + -2, 
+                    this.x + 4, this.y - 0
+                );
+                translate(-1, 0);
+                triangle(
+                    this.x, this.y, 
+                    this.x + 2, this.y + -2, 
+                    this.x + 4, this.y - 0
+                );
+                translate(-2, 0);
+                triangle(
+                    this.x, this.y, 
+                    this.x + 2, this.y + -2 * this.seed, 
+                    this.x + 4, this.y - 0
+                );
+                popMatrix();
+                if(this.left){
+                    triangle(
+                        this.x, this.y, 
+                        this.x, this.y + -2, 
+                        this.x + 4, this.y - 0
+                    );
+                }
+                if(this.right){
+                    triangle(
+                        this.x + 10, this.y, 
+                        this.x + 10, this.y + -2, 
+                        this.x + 8, this.y - 0
+                    );
+                }
+            }
+        }
+    };
+    class Pipe extends Collidable {
+        constructor(x, y, w, h, type, left, right, top, bottom, onEdge, i) {
+            super(x, y, w, h, type, left, right, top, bottom, onEdge, i);
+        }
+        draw (){
+            //a new collision object
+            let that = {
+                x: 0,
+                y: 0,
+                w: 0,
+                h: 0,
+            };
+            
+            //left pipe
+            if(this.left){
+                //particle stream
+                poisonStream.add(this.x + this.w - 4, this.y + this.h - 4, 0.5, 30);
+                
+                fill(col.bl.pipe2);
+                ctx.fillRect(this.x, this.y, this.w, this.h);
+                fill(col.bl.pipe1);
+                ctx.fillRect(this.x, this.y, this.w, this.h/2);
+                //a second collision object
+                that = {
+                    x: this.x + this.w - this.w/5,
+                    y: this.y - 2.5,
+                    w: this.w/5,
+                    h: this.h*1.5,
+                };
+                ctx.fillRect(that.x, that.y, that.w, that.h);
+                
+            }
+            //right pipe
+            if(this.right){
+                poisonStream.add(this.x, this.y + this.h - 4, -0.5, 30);
+                fill(col.bl.pipe2);
+                ctx.fillRect(this.x, this.y, this.w, this.h);
+                fill(col.bl.pipe1);
+                ctx.fillRect(this.x, this.y, this.w, this.h/2);
+                that = {
+                    x: this.x,
+                    y: this.y - 2.5,
+                    w: this.w/5,
+                    h: this.h*1.5,
+                };
+                ctx.fillRect(that.x, that.y, that.w, that.h);
+            }
+                    
+        }
+    }
+    
+    class Acid extends nonCollidable {
+        constructor(x, y, w, h, type, left, right, top, bottom, onEdge, i) {
+            super(x, y, w, h, type, left, right, top, bottom, onEdge, i);
+        }
+        draw (){
+            fill(col.bl.poison);
+            //constants special to this block
+            let speed = 17.786;
+            let zed = 1;
+            
+            //if not the top block
+            if(!this.top){
+                //start
+                triangle(this.x, this.y, this.x, this.y + (Math.sin(frameCount/speed) - zed), this.x + 4, this.y - 0);
+                //center
+                triangle(this.x, this.y, this.x + 6, this.y + (Math.cos(frameCount/(speed * this.seed)) - zed), this.x + 10, this.y - 0);
+                triangle(this.x + 3, this.y, this.x + 6, this.y + (Math.sin(frameCount/(this.seed * 10)) - zed), this.x + 9, this.y - 0);
+                
+                //finish
+                triangle(this.x + 4, this.y, this.x + 10, this.y + (Math.sin(frameCount/speed) - zed), this.x + 10, this.y - 0);
+                
+                poisonParticles.add(this.x, this.y, this.w, this.h);
+            }
+            
+            ctx.fillRect(this.x, this.y, this.w, this.h);
+            if(edgeCheck(player, this)){
+                player.die = true;
+            }
+        }
+    }
+    class Checkpoint extends nonCollidable {
+        constructor(x, y, w, h, type, left, right, top, bottom, onEdge, i) {
+            super(x, y, w, h, type, left, right, top, bottom, onEdge, i);
+        }
+        draw (){
+            ctx.fillStyle = "rgb(63, 71, 77)";
+            ctx.fillRect(this.x + this.w/2, this.y, this.w/5, this.h);   
+        }
+    }
+    
+    //auto tiling, orientation, edge checks. 
+    const tiled = {
+        /**
+         * Created by Arrow (@Arrow.programming)
+         * January, 2025
+         * 
+        **/
+        left: function(MAP, row, col, char, char2){
+            //if(MAP[row][col] === char){
+                if(MAP[row][col - 1] === char){
+                    return true;
+                } 
+            //}
+        },
+        right: function(MAP, row, col, char){
+            //if(MAP[row][col] === char){
+                if(MAP[row][col + 1] === char){
+                    return true;
+                }
+            //}
+        },
+        bottom: function(MAP, row, col, char){
+            //if(MAP[row][col] === char){
+                if(row < MAP.length - 1){
+                    if(MAP[row + 1][col] === char){
+                        return true;
+                    }
+                }
+            //}
+        },
+        top: function(MAP, row, col, char){
+            //if(MAP[row][col] === char){
+                if(row > 0){
+                    if(MAP[row - 1][col] === char){
+                        return true;
+                    }
+                }
+            //}
+        },
+        isOnEdge: function(array, row, col) {
+            const numRows = array.length;
+            const numCols = array[0].length;
+            return row === 0 || row === numRows - 1 || col === 0 || col === numCols - 1;
+        },
+        findEdges: function(matrix) {
+            if (!matrix.length) return [];
+        
+            const edges = [];
+            const rows = matrix.length;
+            const cols = matrix[0].length;
+        
+            // Top row
+            for (let col = 0; col < cols; col++) {
+                edges.push(matrix[0][col]);
+            }
+        
+            // Right column (excluding the top and bottom corners)
+            for (let row = 1; row < rows - 1; row++) {
+                edges.push(matrix[row][cols - 1]);
+            }
+        
+            // Bottom row (if there's more than one row)
+            if (rows > 1) {
+                for (let col = cols - 1; col >= 0; col--) {
+                    edges.push(matrix[rows - 1][col]);
+                }
+            }
+        
+            // Left column (excluding the top and bottom corners)
+            for (let row = rows - 2; row > 0; row--) {
+                edges.push(matrix[row][0]);
+            }
+        
+            return edges;
+        }
+    };
+    
+    //map constructor, this inputs a 2d array (or an array of strings). A representation of one room
+    const mapSetup = (function(lvl) {
+        //reset arrays
+        collidables = [];
+        nonCollidables = [];
+        rearBlocks = [];
+        const MAP = lvl;
+        let longestX = 0;
+        for (let i = 0; i < MAP.length; i++) {
+            for (let j = 0; j < MAP[i].length; j++) {
+                switch (MAP[i][j]) {
+                    //A standard block
+                    case "#": {
+                        collidables.push(new Block(j * blockSize, i * blockSize, blockSize, blockSize, "block", tiled.left(MAP, i, j, "#"), tiled.right(MAP, i, j, "#"), !tiled.top(MAP, i, j, "#") && !tiled.top(MAP, i, j, "-") ? false: true, tiled.bottom(MAP, i, j, "#"), tiled.isOnEdge(MAP, i, j), Math.random() * (1.4 - 0.6) + 0.6));
+                        break;
+                    }
+                    //Poison
+                    case "-": {
+                        nonCollidables.push(new Acid(j * blockSize, (i * blockSize) + (tiled.top(MAP, i, j, "-") ? 0: 3), blockSize, blockSize, "poison", tiled.left(MAP, i, j, "-"), tiled.right(MAP, i, j, "-"), tiled.top(MAP, i, j, "-"), tiled.bottom(MAP, i, j, "-"), tiled.isOnEdge(MAP, i, j), Math.random() * (0.9 - 0.3) + 0.3));
+                        break;
+                    }
+                    //A standard pipe
+                    case "P": {
+                        collidables.push(new Pipe(j * blockSize - (tiled.right(MAP, i, j, "#") ? blockSize: 0), (i * blockSize), blockSize * 2, blockSize, "pipe", tiled.left(MAP, i, j, "#"), tiled.right(MAP, i, j, "#"), tiled.top(MAP, i, j, "#"), tiled.bottom(MAP, i, j, "#"), tiled.isOnEdge(MAP, i, j), Math.random() * (0.9 - 0.3) + 0.3));
+                        //collisionEntities.push({x: j * blockSize, y: i * blockSize, w: blockSize, h: blockSize});
+                        break;
+                    }
+                    //A checkpoint
+                    case "C": {
+                        rearBlocks.push(new Checkpoint(j * blockSize, (i * blockSize) - blockSize * 2, blockSize, blockSize * 3, "lamp", tiled.left(MAP, i, j, "#"), tiled.right(MAP, i, j, "#"), tiled.top(MAP, i, j, "#"), tiled.bottom(MAP, i, j, "#"), tiled.isOnEdge(MAP, i, j), Math.random() * (0.9 - 0.3) + 0.3));
+                        break;
+                    }
+                }
+            }
+            if(MAP[i].length > longestX){
+                longestX = MAP[i].length;
+            }
+        }
+        //fetch the width and height of each level in pixels
+        lvlSizeX = longestX*blockSize;
+        lvlSizeY = MAP.length*blockSize;
+    });
+    
+    //starting position and map
+    if(firstFrame){
+        mapSetup(curMap[functions.startPos.row][functions.startPos.col]);
+        player.x = functions.startPos.x;
+        player.y = functions.startPos.y;
+    }
+    //camera
+    cam = {
+        //the cam position
+        x: 0, 
+        y: 0,
+        //the scale
+        z: 3,
+        //the camera alignment, a level is 100x100 pixels
+        align: {
+            x: 100,
+            y: 100,
+        },
+        //run the cam
+        run: function(){
+            //update the cam based on player coords
+            this.x = lerp(this.x, player.x, 0.08);
+            this.y = lerp(this.y, player.y, 0.08);
+            
+            //constrain the camera values from the alignment shift to the level size
+            this.x = constrain(this.x, this.align.x, lvlSizeX - this.align.x);
+            this.y = constrain(this.y, this.align.x, lvlSizeY - this.align.y);
+            
+            //transformation, bitcase to remove the nasty lines between blocks 
+            scale(this.z);
+            translate(~~(-this.x + this.align.x + shake.x), ~~(-this.y + this.align.y + shake.y));
+            
+        },
+    };
+    
+    //animation loop
+    const render = () => {
+        //blank canvas
+        background(col.bg);
+        
+        //start image cache (Note to future self: Loading stuff before the cache causes weird issues. Make sure to load the image cache before anything else)
+        cache.load();
+        
+        wind.add();
+        wind.run();
+        
+        roomName();
+        
+        //the equivilant of pushMatrix and popMatrix
+        ctx.save();
+            cam.run();
+            
+            //shakes.push(new Shake(2));
+            
+            //cam shake loop
+            for(let s in shakes){
+                shakes[s].active(s);
+            }
+            
+            //seperate particle entities can be run wherever I want to determine their z-index
+            poisonParticles.run();
+            poisonStream.run();
+            
+            //this is a seperate array for blocks that go behind the player. These blocks don't even require their own constructor. They just get pushed into the rearBlocks array as a new Block(). And since they don't collide I can call them behind the player in one frame. Clever, right?
+            for (let i in rearBlocks) {
+                rearBlocks[i].draw();
+            }
+            
+            //horizontal collisions and player movement
+            if(functions.plUpdate){
+                player.moveX();
+            }
+            for(let i in collidables){
+                let col = player.collideX(collidables[i]);
+                //only collide with one block a frame
+                if(col){
+                    break;
+                }
+            }
+            
+            //vertical collisions and player movement
+            if(functions.plUpdate){
+                player.moveY();
+            }
+            for(let i in collidables){
+                let col = player.collideY(collidables[i]);
+                //only collide with one block a frame
+                if(col){
+                    break;
+                }
+            }
+            
+            //draw the player
+            if(functions.plDisplay){
+                player.display();
+            }
+            
+            //running this before the blocks allows me to capture the player only when doing a death animation
+            functions.execute(player);
+            
+            //draw the blocks
+            for (let i in nonCollidables) {
+                nonCollidables[i].draw();
+            }
+            for (let i in collidables) {
+                collidables[i].draw();
+            }
+        ctx.restore();
+        
+        
+        //load texture, this adds more depth to the game
+        img(cache.img[0], 0, 0);
+        
+        
+        //reset events
+        mouse.released = false;
+        mouse.clicked = false;
+        
+        
+        //this is dev junk
+        ctx.font = "25px Arial";
+        ctx.fillStyle = "white";
+        //ctx.fillText(txt, 10, 30);
+        //ctx.fillText(err, 10, 50);
+        //ctx.fillText(JSON.stringify(mouse), 10, 80);
+        
+        //thumbnail for stalkers
+        if(keys[84]){
+            background("rgb(255, 255, 255)");
+        }
+        
+        frameCount += 1;
+    };
+    
+    //I realize the advantages of 
+    if (loopTimer) window.clearInterval(loopTimer);
+    var loopTimer = window.setInterval(render, 1000/60);
+    firstFrame = false;
+    
+    /**
+    window.addEventListener("resize", function() {
+	    var globalHeight = (document.body.clientHeight);
+	    var globalWidth = (document.body.clientWidth);
+	    canvas.style.height = globalHeight + "px";
+	    canvas.style.width = globalWidth + "px";
+	    alert(canvas.style.width);
+    });
+	const openInFullscreen = () => {
+		const w = window.open();
+		w.document.open();
+		w.document.write(`<!doctype html><html>${document.querySelector('html').innerHTML}</html>`);
+		w.document.close();
+	}
+	// get our button
+	const button = document.getElementById('fullscreen');
+	// add the event listener
+	button.addEventListener('click', openInFullscreen);
+    **/
+    /**
+    window.openInFullscreen = function(){
+        var w = window.open();
+        
+        let pageCode = "";
+        pageCode += "<html><head><script>";
+        pageCode += "var KAInfiniteLoopProtect = function(){};";
+        pageCode += "</scr" + "ipt>";
+        pageCode += document.getElementsByTagName("head")[0].innerHTML;
+        pageCode += "</head><body>";
+        pageCode += document.getElementsByTagName("body")[0].innerHTML;
+        pageCode += "</body></html>";
+        
+        
+        w.document.open();
+        w.document.write(pageCode);
+        w.document.close(); 
+    };
+            
+    document.body.addEventListener("click", function(){
+        if(width <= 4000){
+            window.openInFullscreen();
+        }
+    
+        else{
+            let fullScreen = window.innerWidth === screen.width && window.innerHeight === screen.height;
+    
+            if(fullScreen){
+                if(document.exitFullscreen){
+                    document.exitFullscreen();
+                }
+    
+                // safari
+                else if(document.webkitExitFullscreen){
+                    document.webkitExitFullscreen();
+                }
+    
+                // MS edge
+                else if(document.msExitFullscreen){
+                    document.msExitFullscreen();
+                }
+            }
+            else{
+                if(document.body.requestFullscreen){
+                    document.body.requestFullscreen();
+                }
+    
+                // safari
+                else if(document.body.webkitRequestFullscreen){
+                    document.body.webkitRequestFullscreen();
+                }
+    
+                // MS edge
+                else if(document.body.msRequestFullscreen){
+                    document.body.msRequestFullscreen();
+                }
+            }
+        }
+    });
+    **/
+} catch(e){
+    console.log(e);
+    //alert(e.stack);
+}
+    </script>
+</html>
+
+<!---->
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
