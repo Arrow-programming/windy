@@ -1,2 +1,2 @@
 # windy
-One of my current project
+One of my current projects
